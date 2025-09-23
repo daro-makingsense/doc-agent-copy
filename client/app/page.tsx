@@ -69,14 +69,14 @@ export default function DocumentsPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Documents</h1>
-        <p className="text-gray-600">Manage your uploaded financial documents</p>
+        <p className="text-gray-700">Manage your uploaded financial documents</p>
       </div>
 
       {documents?.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <FileText className="h-12 w-12 text-gray-700 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No documents yet</h3>
-          <p className="text-gray-600 mb-6">Upload your first document to get started</p>
+          <p className="text-gray-700 mb-6">Upload your first document to get started</p>
           <Link
             href="/upload"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -105,21 +105,21 @@ export default function DocumentsPage() {
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
                     <div>
-                      <span className="text-gray-500">Size:</span>{' '}
+                      <span className="text-gray-700">Size:</span>{' '}
                       <span className="font-medium">{formatBytes(doc.file_size)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Pages:</span>{' '}
+                      <span className="text-gray-700">Pages:</span>{' '}
                       <span className="font-medium">{doc.page_count || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Words:</span>{' '}
+                      <span className="text-gray-700">Words:</span>{' '}
                       <span className="font-medium">
                         {doc.word_count ? doc.word_count.toLocaleString() : 'N/A'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-500">Uploaded:</span>{' '}
+                      <span className="text-gray-700">Uploaded:</span>{' '}
                       <span className="font-medium">{formatRelativeTime(doc.created_at)}</span>
                     </div>
                   </div>
@@ -140,7 +140,7 @@ export default function DocumentsPage() {
                       {doc.is_embedded ? 'Embedded' : 'Not Embedded'}
                     </span>
                     {doc.embedding_count && (
-                      <span className="text-gray-500">
+                      <span className="text-gray-700">
                         {doc.embedding_count} embeddings
                       </span>
                     )}
@@ -150,21 +150,21 @@ export default function DocumentsPage() {
                 <div className="flex items-center space-x-2">
                   <Link
                     href={`/documents/${doc.id}`}
-                    className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-2 text-gray-800 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                     title="View details"
                   >
                     <Eye className="h-5 w-5" />
                   </Link>
                   <Link
                     href={`/research?documentId=${doc.id}`}
-                    className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-2 text-gray-800 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                     title="Research"
                   >
                     <Brain className="h-5 w-5" />
                   </Link>
                   <Link
                     href={`/chat?documentId=${doc.id}`}
-                    className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-2 text-gray-800 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                     title="Chat"
                   >
                     <MessageSquare className="h-5 w-5" />

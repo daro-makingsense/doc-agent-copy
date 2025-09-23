@@ -92,7 +92,7 @@ export default function UploadPage() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Upload Document</h1>
-        <p className="text-gray-600">Upload a financial document for AI-powered analysis</p>
+        <p className="text-gray-900">Upload a financial document for AI-powered analysis</p>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border p-8">
@@ -109,11 +109,11 @@ export default function UploadPage() {
         >
           {!selectedFile ? (
             <>
-              <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <Upload className="h-12 w-12 text-gray-700 mx-auto mb-4" />
               <p className="text-gray-700 mb-2">
                 Drag and drop your PDF file here, or click to browse
               </p>
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-gray-700 mb-4">
                 Maximum file size: {formatBytes(MAX_FILE_SIZE)}
               </p>
               <input
@@ -145,10 +145,10 @@ export default function UploadPage() {
               
               <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <FileText className="h-8 w-8 text-gray-600" />
+                  <FileText className="h-8 w-8 text-gray-700" />
                   <div className="text-left">
                     <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                    <p className="text-sm text-gray-500">{formatBytes(selectedFile.size)}</p>
+                    <p className="text-sm text-gray-700">{formatBytes(selectedFile.size)}</p>
                   </div>
                 </div>
                 {!isUploading && !isSuccess && (
@@ -156,7 +156,7 @@ export default function UploadPage() {
                     onClick={() => setSelectedFile(null)}
                     className="p-1 hover:bg-gray-200 rounded transition-colors"
                   >
-                    <X className="h-5 w-5 text-gray-600" />
+                    <X className="h-5 w-5 text-gray-700" />
                   </button>
                 )}
               </div>
@@ -190,7 +190,7 @@ export default function UploadPage() {
 
         <div className="mt-6 space-y-2">
           <h3 className="font-medium text-gray-900">Supported Features:</h3>
-          <ul className="text-sm text-gray-600 space-y-1">
+          <ul className="text-sm text-gray-700 space-y-1">
             <li>• PDF document parsing with advanced extraction</li>
             <li>• Financial facts and metrics extraction</li>
             <li>• Investment data analysis</li>

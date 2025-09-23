@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, DocumentStatus } from '@/lib/api-client';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { FileText, Loader2, AlertCircle, CheckCircle, Clock, Brain, MessageSquare, ArrowLeft } from 'lucide-react';
@@ -32,15 +32,13 @@ export default function DocumentDetailsPage() {
   });
 
   // Refetch document details when processing is complete
+  const queryClient = useQueryClient();
   useEffect(() => {
     if (status?.is_processed && status?.is_embedded) {
       // Refetch document to get updated financial facts, etc.
-      const timer = setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-      return () => clearTimeout(timer);
+      queryClient.invalidateQueries({ queryKey: ['document', documentId] });
     }
-  }, [status?.is_processed, status?.is_embedded]);
+  }, [status?.is_processed, status?.is_embedded, documentId, queryClient]);
 
   if (docLoading) {
     return (
@@ -70,7 +68,7 @@ export default function DocumentDetailsPage() {
       <div className="mb-6">
         <Link
           href="/"
-          className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
+          className="inline-flex items-center text-gray-900 hover:text-gray-700 mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to Documents
@@ -81,7 +79,7 @@ export default function DocumentDetailsPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               {document.original_filename || document.filename}
             </h1>
-            <p className="text-gray-600">Document ID: {document.id}</p>
+            <p className="text-gray-700">Document ID: {document.id}</p>
           </div>
           
           <div className="flex items-center space-x-3">
@@ -89,7 +87,7 @@ export default function DocumentDetailsPage() {
               href={`/research?documentId=${document.id}`}
               className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors ${
                 isProcessing
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-200 text-gray-700 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
               aria-disabled={isProcessing}
@@ -102,7 +100,7 @@ export default function DocumentDetailsPage() {
               href={`/chat?documentId=${document.id}`}
               className={`inline-flex items-center px-4 py-2 rounded-lg transition-colors ${
                 isProcessing
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  ? 'bg-gray-200 text-gray-700 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
               aria-disabled={isProcessing}
@@ -138,9 +136,9 @@ export default function DocumentDetailsPage() {
               {status.is_processed ? (
                 <CheckCircle className="h-5 w-5 text-green-600" />
               ) : (
-                <Clock className="h-5 w-5 text-gray-400" />
+                <Clock className="h-5 w-5 text-gray-700" />
               )}
-              <span className={status.is_processed ? 'text-green-700' : 'text-gray-600'}>
+              <span className={status.is_processed ? 'text-green-700' : 'text-gray-800'}>
                 Document parsing and extraction
               </span>
             </div>
@@ -148,9 +146,9 @@ export default function DocumentDetailsPage() {
               {status.is_embedded ? (
                 <CheckCircle className="h-5 w-5 text-green-600" />
               ) : (
-                <Clock className="h-5 w-5 text-gray-400" />
+                <Clock className="h-5 w-5 text-gray-700" />
               )}
-              <span className={status.is_embedded ? 'text-green-700' : 'text-gray-600'}>
+              <span className={status.is_embedded ? 'text-green-700' : 'text-gray-800'}>
                 Creating vector embeddings ({status.embedding_count} chunks)
               </span>
             </div>
@@ -165,29 +163,29 @@ export default function DocumentDetailsPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Document Information</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-gray-500">File Size:</span>
+              <span className="text-gray-700">File Size:</span>
               <p className="font-medium">{formatBytes(document.file_size)}</p>
             </div>
             <div>
-              <span className="text-gray-500">Pages:</span>
+              <span className="text-gray-700">Pages:</span>
               <p className="font-medium">{document.page_count || 'N/A'}</p>
             </div>
             <div>
-              <span className="text-gray-500">Words:</span>
+              <span className="text-gray-700">Words:</span>
               <p className="font-medium">
                 {document.word_count ? document.word_count.toLocaleString() : 'N/A'}
               </p>
             </div>
             <div>
-              <span className="text-gray-500">Embeddings:</span>
+              <span className="text-gray-700">Embeddings:</span>
               <p className="font-medium">{document.embedding_count || 'N/A'}</p>
             </div>
             <div>
-              <span className="text-gray-500">Created:</span>
+              <span className="text-gray-700">Created:</span>
               <p className="font-medium">{formatDate(document.created_at)}</p>
             </div>
             <div>
-              <span className="text-gray-500">Updated:</span>
+              <span className="text-gray-700">Updated:</span>
               <p className="font-medium">{document.updated_at ? formatDate(document.updated_at) : 'N/A'}</p>
             </div>
           </div>
@@ -200,7 +198,7 @@ export default function DocumentDetailsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {Object.entries(document.financial_facts).map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-gray-500 text-sm">
+                  <span className="text-gray-700 text-sm">
                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                   </span>
                   <p className="font-medium">{String(value)}</p>
@@ -217,7 +215,7 @@ export default function DocumentDetailsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {Object.entries(document.investment_data).map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-gray-500 text-sm">
+                  <span className="text-gray-700 text-sm">
                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                   </span>
                   <p className="font-medium">{String(value)}</p>
@@ -234,7 +232,7 @@ export default function DocumentDetailsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {Object.entries(document.key_metrics).map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-gray-500 text-sm">
+                  <span className="text-gray-700 text-sm">
                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                   </span>
                   <p className="font-medium">

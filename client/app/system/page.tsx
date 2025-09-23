@@ -50,7 +50,7 @@ export default function SystemPage() {
     <div className="max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">System Monitoring</h1>
-        <p className="text-gray-600">Monitor system health and performance metrics</p>
+        <p className="text-gray-700">Monitor system health and performance metrics</p>
       </div>
 
       {/* Health Status */}
@@ -75,9 +75,9 @@ export default function SystemPage() {
           {health?.services && Object.entries(health.services).map(([service, status]) => (
             <div key={service} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center space-x-3">
-                {service === 'database' && <Database className="h-5 w-5 text-gray-600" />}
-                {service === 'openai' && <Brain className="h-5 w-5 text-gray-600" />}
-                {service === 'pinecone' && <HardDrive className="h-5 w-5 text-gray-600" />}
+                {service === 'database' && <Database className="h-5 w-5 text-gray-700" />}
+                {service === 'openai' && <Brain className="h-5 w-5 text-gray-700" />}
+                {service === 'pinecone' && <HardDrive className="h-5 w-5 text-gray-700" />}
                 <span className="font-medium capitalize">{service}</span>
               </div>
               <span className={`text-sm font-medium ${
@@ -92,7 +92,7 @@ export default function SystemPage() {
         </div>
         
         {health && (
-          <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
+          <div className="mt-4 flex items-center justify-between text-sm text-gray-700">
             <span>Version: {health.version}</span>
             <span>Last updated: {formatDate(health.timestamp)}</span>
           </div>
@@ -103,46 +103,46 @@ export default function SystemPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500">Documents</span>
+            <span className="text-gray-700">Documents</span>
             <Activity className="h-5 w-5 text-blue-600" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{stats?.documents.total || 0}</p>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-gray-700 mt-1">
             {stats?.documents.processing_rate} processed
           </p>
         </div>
         
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500">Chat Sessions</span>
+            <span className="text-gray-700">Chat Sessions</span>
             <MessageSquare className="h-5 w-5 text-green-600" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{stats?.chat.total_sessions || 0}</p>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-gray-700 mt-1">
             {stats?.chat.active_sessions} active
           </p>
         </div>
         
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500">Research Tasks</span>
+            <span className="text-gray-700">Research Tasks</span>
             <Brain className="h-5 w-5 text-purple-600" />
           </div>
           <p className="text-2xl font-bold text-gray-900">{stats?.research.total_tasks || 0}</p>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-gray-700 mt-1">
             {stats?.research.completion_rate} completed
           </p>
         </div>
         
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-500">Vector Store</span>
+            <span className="text-gray-700">Vector Store</span>
             <HardDrive className="h-5 w-5 text-amber-600" />
           </div>
           <p className="text-2xl font-bold text-gray-900">
             {stats?.vector_store.total_vectors.toLocaleString() || 0}
           </p>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-gray-700 mt-1">
             {((stats?.vector_store.index_fullness || 0) * 100).toFixed(1)}% full
           </p>
         </div>
@@ -176,7 +176,7 @@ export default function SystemPage() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
+              <div className="h-full flex items-center justify-center text-gray-700">
                 No data available
               </div>
             )}
@@ -209,7 +209,7 @@ export default function SystemPage() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
+              <div className="h-full flex items-center justify-center text-gray-700">
                 No data available
               </div>
             )}
@@ -245,19 +245,19 @@ export default function SystemPage() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Vector Store Details</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <span className="text-gray-500 text-sm">Total Vectors</span>
+              <span className="text-gray-700 text-sm">Total Vectors</span>
               <p className="font-medium">{stats.vector_store.total_vectors.toLocaleString()}</p>
             </div>
             <div>
-              <span className="text-gray-500 text-sm">Dimension</span>
+              <span className="text-gray-700 text-sm">Dimension</span>
               <p className="font-medium">{stats.vector_store.dimension}</p>
             </div>
             <div>
-              <span className="text-gray-500 text-sm">Index Fullness</span>
+              <span className="text-gray-700 text-sm">Index Fullness</span>
               <p className="font-medium">{(stats.vector_store.index_fullness * 100).toFixed(2)}%</p>
             </div>
             <div>
-              <span className="text-gray-500 text-sm">Avg per Document</span>
+              <span className="text-gray-700 text-sm">Avg per Document</span>
               <p className="font-medium">
                 {stats.documents.embedded > 0 
                   ? Math.round(stats.vector_store.total_vectors / stats.documents.embedded)

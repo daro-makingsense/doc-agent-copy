@@ -92,7 +92,7 @@ export default function ResearchPage() {
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Deep Research</h1>
-        <p className="text-gray-600">Generate comprehensive research and analysis from your documents</p>
+        <p className="text-gray-700">Generate comprehensive research and analysis from your documents</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -181,8 +181,8 @@ export default function ResearchPage() {
         <div className="lg:col-span-2">
           {!selectedDocument ? (
             <div className="bg-gray-50 rounded-lg p-12 text-center">
-              <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">Select a document to view research tasks</p>
+              <Brain className="h-12 w-12 text-gray-700 mx-auto mb-4" />
+              <p className="text-gray-700">Select a document to view research tasks</p>
             </div>
           ) : researchTasks && researchTasks.length > 0 ? (
             <div className="space-y-4">
@@ -193,7 +193,7 @@ export default function ResearchPage() {
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900">{task.topic}</h3>
                         {task.custom_query && (
-                          <p className="text-sm text-gray-600 mt-1">{task.custom_query}</p>
+                          <p className="text-sm text-gray-700 mt-1">{task.custom_query}</p>
                         )}
                       </div>
                       <div className="flex items-center space-x-2">
@@ -204,7 +204,7 @@ export default function ResearchPage() {
                           <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
                         )}
                         {task.status === 'pending' && (
-                          <Clock className="h-5 w-5 text-gray-400" />
+                          <Clock className="h-5 w-5 text-gray-700" />
                         )}
                         {task.status === 'failed' && (
                           <AlertCircle className="h-5 w-5 text-red-600" />
@@ -220,7 +220,7 @@ export default function ResearchPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <div className="flex items-center space-x-4 text-sm text-gray-700">
                       <span>Created {formatRelativeTime(task.created_at)}</span>
                       {task.processing_time && (
                         <span>• {task.processing_time.toFixed(1)}s processing time</span>
@@ -247,13 +247,13 @@ export default function ResearchPage() {
                                     <span className="font-medium text-gray-700 mr-2">{key}.</span>
                                     <div>
                                       <p className="font-medium text-gray-900">{section.title}</p>
-                                      <p className="text-sm text-gray-600">{section.description}</p>
+                                      <p className="text-sm text-gray-700">{section.description}</p>
                                     </div>
                                   </div>
                                   {isExpanded ? (
-                                    <ChevronDown className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                    <ChevronDown className="h-5 w-5 text-gray-700 flex-shrink-0" />
                                   ) : (
-                                    <ChevronRight className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                    <ChevronRight className="h-5 w-5 text-gray-700 flex-shrink-0" />
                                   )}
                                 </button>
 
@@ -290,15 +290,15 @@ export default function ResearchPage() {
                             <div key={idx} className="bg-gray-50 rounded p-3 text-sm">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="font-medium text-gray-700">Page {source.page}</span>
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-gray-700">
                                   Relevance: {(source.relevance_score * 100).toFixed(0)}%
                                 </span>
                               </div>
-                              <p className="text-gray-600 line-clamp-2">{source.content}</p>
+                              <p className="text-gray-700 line-clamp-2">{source.content}</p>
                             </div>
                           ))}
                           {task.sources_used.length > 5 && (
-                            <p className="text-sm text-gray-500 text-center">
+                            <p className="text-sm text-gray-700 text-center">
                               and {task.sources_used.length - 5} more sources...
                             </p>
                           )}
@@ -311,9 +311,9 @@ export default function ResearchPage() {
             </div>
           ) : (
             <div className="bg-gray-50 rounded-lg p-12 text-center">
-              <Brain className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No research tasks yet for this document</p>
-              <p className="text-sm text-gray-500 mt-2">Create your first research task using the form</p>
+              <Brain className="h-12 w-12 text-gray-700 mx-auto mb-4" />
+              <p className="text-gray-700">No research tasks yet for this document</p>
+              <p className="text-sm text-gray-700 mt-2">Create your first research task using the form</p>
             </div>
           )}
         </div>
