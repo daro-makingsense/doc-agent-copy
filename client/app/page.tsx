@@ -6,7 +6,7 @@ import { formatBytes, formatDate, formatRelativeTime } from '@/lib/utils';
 import { FileText, Trash2, Eye, Brain, MessageSquare, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DocumentsPage() {
   const { toast } = useToast();

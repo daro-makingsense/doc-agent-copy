@@ -6,7 +6,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient, Document, ChatSession, ChatMessage } from '@/lib/api-client';
 import { formatRelativeTime, formatDate } from '@/lib/utils';
 import { MessageSquare, Send, Loader2, Plus, FileText, Bot, User, Settings } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ChatPage() {
   const searchParams = useSearchParams();

@@ -6,7 +6,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient, Document, ResearchTask } from '@/lib/api-client';
 import { formatRelativeTime } from '@/lib/utils';
 import { Brain, FileText, Loader2, AlertCircle, CheckCircle, Clock, ChevronRight, ChevronDown } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ResearchPage() {
   const searchParams = useSearchParams();

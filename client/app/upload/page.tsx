@@ -6,7 +6,7 @@ import { useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { formatBytes } from '@/lib/utils';
 import { Upload, FileText, X, Loader2, CheckCircle } from 'lucide-react';
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@/hooks/use-toast';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
