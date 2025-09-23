@@ -69,14 +69,14 @@ export default function DocumentsPage() {
     <div>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Documents</h1>
-        <p className="text-gray-700">Manage your uploaded financial documents</p>
+        <p className="text-gray-600 dark:text-gray-400">Manage your uploaded financial documents</p>
       </div>
 
       {documents?.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
           <FileText className="h-12 w-12 text-gray-700 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No documents yet</h3>
-          <p className="text-gray-700 mb-6">Upload your first document to get started</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">Upload your first document to get started</p>
           <Link
             href="/upload"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -105,22 +105,22 @@ export default function DocumentsPage() {
                   
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
                     <div>
-                      <span className="text-gray-700">Size:</span>{' '}
-                      <span className="font-medium">{formatBytes(doc.file_size)}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Size:</span>{' '}
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(doc.file_size)}</span>
                     </div>
                     <div>
-                      <span className="text-gray-700">Pages:</span>{' '}
-                      <span className="font-medium">{doc.page_count || 'N/A'}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Pages:</span>{' '}
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{doc.page_count || 'N/A'}</span>
                     </div>
                     <div>
-                      <span className="text-gray-700">Words:</span>{' '}
-                      <span className="font-medium">
+                      <span className="text-gray-600 dark:text-gray-400">Words:</span>{' '}
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
                         {doc.word_count ? doc.word_count.toLocaleString() : 'N/A'}
                       </span>
                     </div>
                     <div>
-                      <span className="text-gray-700">Uploaded:</span>{' '}
-                      <span className="font-medium">{formatRelativeTime(doc.created_at)}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Uploaded:</span>{' '}
+                      <span className="font-medium text-gray-900 dark:text-gray-100">{formatRelativeTime(doc.created_at)}</span>
                     </div>
                   </div>
 
@@ -140,7 +140,7 @@ export default function DocumentsPage() {
                       {doc.is_embedded ? 'Embedded' : 'Not Embedded'}
                     </span>
                     {doc.embedding_count && (
-                      <span className="text-gray-700">
+                      <span className="text-gray-600 dark:text-gray-400">
                         {doc.embedding_count} embeddings
                       </span>
                     )}
