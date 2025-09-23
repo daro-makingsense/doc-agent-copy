@@ -6,7 +6,7 @@ import { apiClient, DocumentStatus } from '@/lib/api-client';
 import { formatBytes, formatDate } from '@/lib/utils';
 import { FileText, Loader2, AlertCircle, CheckCircle, Clock, Brain, MessageSquare, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 
 export default function DocumentDetailsPage() {
   const params = useParams();
@@ -16,6 +16,7 @@ export default function DocumentDetailsPage() {
   const { data: document, isLoading: docLoading, error: docError } = useQuery({
     queryKey: ['document', documentId],
     queryFn: () => apiClient.getDocument(documentId),
+    staleTime: 30000, // Consider data fresh for 30 seconds
   });
 
   const { data: status, isLoading: statusLoading } = useQuery({
@@ -29,16 +30,20 @@ export default function DocumentDetailsPage() {
       // Poll every 2 seconds while processing
       return 2000;
     },
+    staleTime: 10000, // Consider status fresh for 10 seconds
   });
 
   // Refetch document details when processing is complete
   const queryClient = useQueryClient();
+  const [hasRefreshed, setHasRefreshed] = React.useState(false);
+  
   useEffect(() => {
-    if (status?.is_processed && status?.is_embedded) {
-      // Refetch document to get updated financial facts, etc.
+    // Only refresh once when processing completes and we haven't already refreshed
+    if (status?.is_processed && status?.is_embedded && !hasRefreshed) {
+      setHasRefreshed(true);
       queryClient.invalidateQueries({ queryKey: ['document', documentId] });
     }
-  }, [status?.is_processed, status?.is_embedded, documentId, queryClient]);
+  }, [status?.is_processed, status?.is_embedded, hasRefreshed, documentId, queryClient]);
 
   if (docLoading) {
     return (
@@ -79,7 +84,7 @@ export default function DocumentDetailsPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               {document.original_filename || document.filename}
             </h1>
-            <p className="text-gray-700">Document ID: {document.id}</p>
+            <p className="text-gray-600 dark:text-gray-400">Document ID: {document.id}</p>
           </div>
           
           <div className="flex items-center space-x-3">
@@ -121,7 +126,7 @@ export default function DocumentDetailsPage() {
               <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
               <div>
                 <h3 className="font-semibold text-blue-900">Processing Document</h3>
-                <p className="text-sm text-blue-700">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
                   This may take a few minutes depending on the document size...
                 </p>
               </div>
@@ -138,7 +143,7 @@ export default function DocumentDetailsPage() {
               ) : (
                 <Clock className="h-5 w-5 text-gray-700" />
               )}
-              <span className={status.is_processed ? 'text-green-700' : 'text-gray-800'}>
+              <span className={status.is_processed ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}>
                 Document parsing and extraction
               </span>
             </div>
@@ -148,7 +153,7 @@ export default function DocumentDetailsPage() {
               ) : (
                 <Clock className="h-5 w-5 text-gray-700" />
               )}
-              <span className={status.is_embedded ? 'text-green-700' : 'text-gray-800'}>
+              <span className={status.is_embedded ? 'text-green-700 dark:text-green-300' : 'text-gray-700 dark:text-gray-300'}>
                 Creating vector embeddings ({status.embedding_count} chunks)
               </span>
             </div>
@@ -163,30 +168,30 @@ export default function DocumentDetailsPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Document Information</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <span className="text-gray-700">File Size:</span>
-              <p className="font-medium">{formatBytes(document.file_size)}</p>
+              <span className="text-gray-600 dark:text-gray-400">File Size:</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{formatBytes(document.file_size)}</p>
             </div>
             <div>
-              <span className="text-gray-700">Pages:</span>
-              <p className="font-medium">{document.page_count || 'N/A'}</p>
+              <span className="text-gray-600 dark:text-gray-400">Pages:</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{document.page_count || 'N/A'}</p>
             </div>
             <div>
-              <span className="text-gray-700">Words:</span>
-              <p className="font-medium">
+              <span className="text-gray-600 dark:text-gray-400">Words:</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">
                 {document.word_count ? document.word_count.toLocaleString() : 'N/A'}
               </p>
             </div>
             <div>
-              <span className="text-gray-700">Embeddings:</span>
-              <p className="font-medium">{document.embedding_count || 'N/A'}</p>
+              <span className="text-gray-600 dark:text-gray-400">Embeddings:</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{document.embedding_count || 'N/A'}</p>
             </div>
             <div>
-              <span className="text-gray-700">Created:</span>
-              <p className="font-medium">{formatDate(document.created_at)}</p>
+              <span className="text-gray-600 dark:text-gray-400">Created:</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{formatDate(document.created_at)}</p>
             </div>
             <div>
-              <span className="text-gray-700">Updated:</span>
-              <p className="font-medium">{document.updated_at ? formatDate(document.updated_at) : 'N/A'}</p>
+              <span className="text-gray-600 dark:text-gray-400">Updated:</span>
+              <p className="font-medium text-gray-900 dark:text-gray-100">{document.updated_at ? formatDate(document.updated_at) : 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -198,10 +203,10 @@ export default function DocumentDetailsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {Object.entries(document.financial_facts).map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-gray-700 text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 text-sm">
                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                   </span>
-                  <p className="font-medium">{String(value)}</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{String(value)}</p>
                 </div>
               ))}
             </div>
@@ -215,10 +220,10 @@ export default function DocumentDetailsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {Object.entries(document.investment_data).map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-gray-700 text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 text-sm">
                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                   </span>
-                  <p className="font-medium">{String(value)}</p>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{String(value)}</p>
                 </div>
               ))}
             </div>
@@ -232,10 +237,10 @@ export default function DocumentDetailsPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {Object.entries(document.key_metrics).map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-gray-700 text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 text-sm">
                     {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
                   </span>
-                  <p className="font-medium">
+                  <p className="font-medium text-gray-900 dark:text-gray-100">
                     {typeof value === 'number' ? value.toLocaleString() : String(value)}
                   </p>
                 </div>
