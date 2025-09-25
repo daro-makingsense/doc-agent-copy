@@ -255,9 +255,9 @@ async def start_research(
         
         return schemas.ResearchResponse(
             task_id=result['task_id'],
-            content_outline=result['content_outline'],
-            research_findings=result['detailed_sections'],
-            sources_used=result['sources_used'],
+            content_outline={"summary": result['summary']},
+            research_findings={"summary": result['summary']},
+            sources_used=result['sources'],
             processing_time=processing_time
         )
         

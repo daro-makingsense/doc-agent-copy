@@ -1,47 +1,163 @@
 """
-Deep Research Agent for analyzing financial documents and generating content outlines.
-Based on the local-deep-researcher architecture but using OpenAI instead of Ollama.
+Deep Research Agent refactored following the langchain local-deep-researcher pattern.
+Uses ChatOpenAI and Vector Search instead of web search.
 """
 import logging
-from typing import Dict, Any, List, Optional, Annotated
+from typing import Dict, Any, List, Optional, Literal
 import asyncio
 from datetime import datetime
 import json
 
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage, AIMessage
+from langchain.schema import HumanMessage, SystemMessage
 from langchain.prompts import ChatPromptTemplate
-from langgraph.graph import StateGraph, END
+from langgraph.graph import StateGraph, START, END
 from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.services.embedding_service import embedding_service
 from app.database.models import Document, ResearchTask
 from app.database.connection import get_db_session
-from app.prompts.research_agent import (
-    TOPIC_ANALYSIS_SYSTEM_PROMPT, TOPIC_ANALYSIS_HUMAN_TEMPLATE,
-    RESEARCH_QUESTIONS_SYSTEM_PROMPT, RESEARCH_QUESTIONS_HUMAN_TEMPLATE,
-    CONTENT_OUTLINE_SYSTEM_PROMPT, CONTENT_OUTLINE_HUMAN_TEMPLATE,
-    DETAILED_CONTENT_SYSTEM_PROMPT, DETAILED_CONTENT_HUMAN_TEMPLATE
-)
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+# Constants
+MAX_TOKENS_PER_SOURCE = 1000
+CHARS_PER_TOKEN = 4
+
 
 class ResearchState(BaseModel):
-    """State for the Deep Research Agent."""
+    """State for the Deep Research Agent following reference implementation."""
+    # Core state fields from reference
+    research_topic: str
+    search_query: str = ""
+    research_loop_count: int = 0
+    running_summary: str = ""
+    sources_gathered: List[str] = Field(default_factory=list)
+    vector_search_results: List[str] = Field(default_factory=list)
+    
+    # Additional fields for our implementation
     document_id: str
-    topic: str
-    research_query: str
-    research_questions: List[str] = Field(default_factory=list)
-    retrieved_information: List[Dict[str, Any]] = Field(default_factory=list)
-    content_outline: Dict[str, Any] = Field(default_factory=dict)
-    detailed_sections: Dict[str, Any] = Field(default_factory=dict)
-    sources_used: List[Dict[str, Any]] = Field(default_factory=list)
-    current_step: str = "start"
-    errors: List[str] = Field(default_factory=list)
     task_id: Optional[str] = None
+    errors: List[str] = Field(default_factory=list)
+    retrieved_chunks: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ResearchStateInput(BaseModel):
+    """Input schema for the research workflow."""
+    research_topic: str
+    document_id: str
+    task_id: Optional[str] = None
+
+
+class ResearchStateOutput(BaseModel):
+    """Output schema for the research workflow."""
+    running_summary: str
+    sources_gathered: List[str]
+    research_topic: str
+    document_id: str
+    task_id: Optional[str]
+    errors: List[str]
+
+
+class Configuration(BaseModel):
+    """Configuration for the research agent."""
+    max_research_loops: int = Field(default=3, description="Maximum number of research loops")
+    similarity_threshold: float = Field(default=0.6, description="Similarity threshold for vector search")
+    top_k: int = Field(default=5, description="Number of top results to retrieve")
+    temperature: float = Field(default=0.1, description="LLM temperature")
+    
+
+# Prompts following the reference implementation pattern
+QUERY_WRITER_INSTRUCTIONS = """You are a research query specialist for financial document analysis.
+Your task is to generate targeted search queries to find specific information within a financial document.
+
+Current Date: {current_date}
+Research Topic: {research_topic}
+
+Generate a specific, focused search query that will help find relevant information about this topic in the document.
+The query should be optimized for semantic similarity search within financial documents."""
+
+QUERY_WRITER_JSON_INSTRUCTIONS = """
+Respond with a JSON object in the following format:
+{
+    "query": "Your specific search query",
+    "rationale": "Brief explanation of why this query is relevant"
+}"""
+
+SUMMARIZER_INSTRUCTIONS = """You are a financial research analyst creating comprehensive summaries.
+Your task is to synthesize information from document chunks into a coherent summary.
+
+Focus on:
+- Key financial metrics and data points
+- Strategic insights and implications
+- Investment highlights and risks
+- Specific facts and figures from the source material
+
+Be specific and cite information accurately."""
+
+REFLECTION_INSTRUCTIONS = """You are analyzing a research summary to identify knowledge gaps.
+Research Topic: {research_topic}
+
+Review the current summary and identify:
+1. What important information is still missing?
+2. What aspects need more detail or clarification?
+3. What follow-up questions would provide valuable insights?
+
+Generate a follow-up search query to address the most important knowledge gap."""
+
+REFLECTION_JSON_INSTRUCTIONS = """
+Respond with a JSON object in the following format:
+{
+    "knowledge_gap": "Description of what information is missing or needs clarification",
+    "follow_up_query": "A specific search query to address this gap"
+}"""
+
+
+def get_current_date():
+    """Get current date in readable format."""
+    return datetime.now().strftime("%B %d, %Y")
+
+
+def deduplicate_and_format_sources(chunks: List[Dict[str, Any]], max_tokens_per_source: int) -> str:
+    """Format vector search results into a readable string."""
+    formatted_sources = []
+    seen_content = set()
+    
+    for chunk in chunks:
+        content = chunk.get('content', '')
+        chunk_id = chunk.get('chunk_id', '')
+        
+        # Skip if we've seen similar content
+        content_preview = content[:100]
+        if content_preview in seen_content:
+            continue
+        seen_content.add(content_preview)
+        
+        # Truncate if too long
+        max_chars = max_tokens_per_source * CHARS_PER_TOKEN
+        if len(content) > max_chars:
+            content = content[:max_chars] + "..."
+        
+        # Format the chunk
+        page_num = chunk.get('page_number', 'Unknown')
+        similarity = chunk.get('similarity_score', 0)
+        
+        formatted_source = f"[Page {page_num} | Similarity: {similarity:.2f}]\n{content}\n"
+        formatted_sources.append(formatted_source)
+    
+    return "\n---\n".join(formatted_sources)
+
+
+def format_sources(chunks: List[Dict[str, Any]]) -> str:
+    """Format sources for citation."""
+    sources = []
+    for chunk in chunks:
+        page_num = chunk.get('page_number', 'Unknown')
+        chunk_idx = chunk.get('chunk_index', 'Unknown')
+        sources.append(f"- Page {page_num}, Chunk {chunk_idx}")
+    return "\n".join(sources)
 
 
 class DeepResearchAgent:
@@ -55,29 +171,32 @@ class DeepResearchAgent:
             openai_api_key=settings.OPENAI_API_KEY
         )
         
-        # Create the research workflow
+        self.config = Configuration()
         self.workflow = self._create_workflow()
     
     def _create_workflow(self) -> StateGraph:
-        """Create the langraph workflow for deep research."""
-        workflow = StateGraph(ResearchState)
+        """Create the langraph workflow following reference implementation."""
+        workflow = StateGraph(
+            ResearchState,
+            input=ResearchStateInput,
+            output=ResearchStateOutput,
+            config_schema=Configuration
+        )
         
-        # Add nodes for each step of the research process
-        workflow.add_node("analyze_topic", self._analyze_topic)
-        workflow.add_node("generate_questions", self._generate_research_questions)
-        workflow.add_node("retrieve_information", self._retrieve_information)
-        workflow.add_node("create_outline", self._create_content_outline)
-        workflow.add_node("generate_content", self._generate_detailed_content)
-        workflow.add_node("finalize_research", self._finalize_research)
+        # Add nodes following reference pattern
+        workflow.add_node("generate_query", self._generate_query)
+        workflow.add_node("vector_search", self._vector_search)
+        workflow.add_node("summarize_sources", self._summarize_sources)
+        workflow.add_node("reflect_on_summary", self._reflect_on_summary)
+        workflow.add_node("finalize_summary", self._finalize_summary)
         
-        # Define the workflow edges
-        workflow.set_entry_point("analyze_topic")
-        workflow.add_edge("analyze_topic", "generate_questions")
-        workflow.add_edge("generate_questions", "retrieve_information")
-        workflow.add_edge("retrieve_information", "create_outline")
-        workflow.add_edge("create_outline", "generate_content")
-        workflow.add_edge("generate_content", "finalize_research")
-        workflow.add_edge("finalize_research", END)
+        # Add edges following reference pattern
+        workflow.add_edge(START, "generate_query")
+        workflow.add_edge("generate_query", "vector_search")
+        workflow.add_edge("vector_search", "summarize_sources")
+        workflow.add_edge("summarize_sources", "reflect_on_summary")
+        workflow.add_conditional_edges("reflect_on_summary", self._route_research)
+        workflow.add_edge("finalize_summary", END)
         
         return workflow.compile()
     
@@ -87,17 +206,7 @@ class DeepResearchAgent:
             topic: str, 
             custom_query: Optional[str] = None
         ) -> Dict[str, Any]:
-        """
-        Conduct deep research on a document for a specific topic.
-        
-        Args:
-            document_id: UUID of the document to research
-            topic: Research topic (e.g., "Key Investment Highlights")
-            custom_query: Optional custom research query
-            
-        Returns:
-            Dictionary containing research results
-        """
+        """Conduct deep research on a document for a specific topic."""
         try:
             logger.info(f"Starting deep research for document {document_id}, topic: {topic}")
             
@@ -105,38 +214,30 @@ class DeepResearchAgent:
             task_id = await self._create_research_task(document_id, topic, custom_query or topic)
             
             # Initialize research state
-            initial_state = ResearchState(
+            initial_state = ResearchStateInput(
+                research_topic=topic,
                 document_id=document_id,
-                topic=topic,
-                research_query=custom_query or topic,
                 task_id=task_id
             )
             
             # Execute the research workflow
             final_state = await self.workflow.ainvoke(initial_state)
             
-            # Handle both dict and object responses from langraph
+            # Handle the response
             if isinstance(final_state, dict):
-                # If langraph returns a dictionary instead of the state object
-                content_outline = final_state.get('content_outline', {})
-                detailed_sections = final_state.get('detailed_sections', {})
-                sources_used = final_state.get('sources_used', [])
-                research_questions = final_state.get('research_questions', [])
+                running_summary = final_state.get('running_summary', '')
+                sources_gathered = final_state.get('sources_gathered', [])
                 errors = final_state.get('errors', [])
             else:
-                # Normal case where langraph returns the state object
-                content_outline = final_state.content_outline
-                detailed_sections = final_state.detailed_sections
-                sources_used = final_state.sources_used
-                research_questions = final_state.research_questions
+                running_summary = final_state.running_summary
+                sources_gathered = final_state.sources_gathered
                 errors = final_state.errors
             
             # Update database with results
             await self._update_research_task(
                 task_id,
-                content_outline,
-                detailed_sections,
-                sources_used,
+                running_summary,
+                sources_gathered,
                 "completed" if not errors else "failed",
                 errors
             )
@@ -147,10 +248,8 @@ class DeepResearchAgent:
                 'task_id': task_id,
                 'document_id': document_id,
                 'topic': topic,
-                'content_outline': content_outline,
-                'detailed_sections': detailed_sections,
-                'sources_used': sources_used,
-                'research_questions': research_questions,
+                'summary': running_summary,
+                'sources': sources_gathered,
                 'status': 'completed' if not errors else 'failed',
                 'errors': errors
             }
@@ -158,364 +257,176 @@ class DeepResearchAgent:
         except Exception as e:
             logger.error(f"Error in deep research for document {document_id}: {str(e)}")
             if task_id:
-                await self._update_research_task(task_id, {}, {}, [], "failed", [str(e)])
+                await self._update_research_task(task_id, "", [], "failed", [str(e)])
             raise e
     
-    async def _analyze_topic(self, state: ResearchState) -> ResearchState:
-        """Analyze the research topic and document context."""
+    async def _generate_query(self, state: ResearchState) -> Dict[str, Any]:
+        """Generate a search query based on the research topic."""
         try:
-            logger.info(f"Analyzing topic: {state.topic}")
-            
-            # Get document information
-            with get_db_session() as db:
-                document = db.query(Document).filter(Document.id == state.document_id).first()
-                if not document:
-                    state.errors.append(f"Document {state.document_id} not found")
-                    return state
-                
-                # Extract document attributes within the session scope
-                doc_filename = document.filename
-                doc_page_count = document.page_count or "Unknown"
-                doc_word_count = document.word_count or "Unknown"
-            
-            # Create analysis prompt
-            analysis_prompt = ChatPromptTemplate.from_messages([
-                ("system", TOPIC_ANALYSIS_SYSTEM_PROMPT),
-                ("human", TOPIC_ANALYSIS_HUMAN_TEMPLATE)
-            ])
-            
-            messages = analysis_prompt.format_messages(
-                filename=doc_filename,
-                page_count=doc_page_count,
-                word_count=doc_word_count,
-                topic=state.topic,
-                research_query=state.research_query
+            current_date = get_current_date()
+            formatted_prompt = QUERY_WRITER_INSTRUCTIONS.format(
+                current_date=current_date,
+                research_topic=state.research_topic
             )
+            
+            messages = [
+                SystemMessage(content=formatted_prompt + "\n" + QUERY_WRITER_JSON_INSTRUCTIONS),
+                HumanMessage(content="Generate a query for searching within this financial document:")
+            ]
             
             response = await self.llm.ainvoke(messages)
             
-            # Parse the response
             try:
-                analysis = json.loads(response.content)
-                state.content_outline.update({
-                    'topic_analysis': analysis,
-                    'document_context': {
-                        'filename': doc_filename,
-                        'page_count': doc_page_count,
-                        'word_count': doc_word_count
-                    }
-                })
+                parsed_json = json.loads(response.content)
+                search_query = parsed_json.get("query", state.research_topic)
             except json.JSONDecodeError:
-                logger.warning("Failed to parse topic analysis JSON")
-                state.content_outline['topic_analysis'] = {'raw_response': response.content}
+                logger.warning("Failed to parse query JSON, using fallback")
+                search_query = f"Tell me about {state.research_topic}"
             
-            state.current_step = "analyze_topic_complete"
-            return state
+            return {"search_query": search_query}
             
         except Exception as e:
-            logger.error(f"Error in analyze_topic: {str(e)}")
-            state.errors.append(f"Topic analysis error: {str(e)}")
-            return state
+            logger.error(f"Error generating query: {str(e)}")
+            state.errors.append(f"Query generation error: {str(e)}")
+            return {"search_query": state.research_topic}
     
-    async def _generate_research_questions(self, state: ResearchState) -> ResearchState:
-        """Generate specific research questions based on the topic."""
+    async def _vector_search(self, state: ResearchState) -> Dict[str, Any]:
+        """Perform vector search using the generated query."""
         try:
-            logger.info("Generating research questions")
+            logger.info(f"Performing vector search with query: {state.search_query}")
             
-            question_prompt = ChatPromptTemplate.from_messages([
-                ("system", RESEARCH_QUESTIONS_SYSTEM_PROMPT),
-                ("human", RESEARCH_QUESTIONS_HUMAN_TEMPLATE)
-            ])
-            
-            analysis = state.content_outline.get('topic_analysis', {})
-            
-            messages = question_prompt.format_messages(
-                topic=state.topic,
-                research_query=state.research_query,
-                analysis=json.dumps(analysis, indent=2)
+            # Search for similar chunks
+            similar_chunks = await embedding_service.search_similar_chunks(
+                query=state.search_query,
+                document_id=state.document_id,
+                top_k=self.config.top_k,
+                similarity_threshold=self.config.similarity_threshold
             )
             
-            response = await self.llm.ainvoke(messages)
+            # Format search results
+            search_str = deduplicate_and_format_sources(
+                similar_chunks,
+                max_tokens_per_source=MAX_TOKENS_PER_SOURCE
+            )
             
-            # Parse questions
-            try:
-                questions = json.loads(response.content)
-                if isinstance(questions, list):
-                    state.research_questions = questions
-                else:
-                    state.research_questions = [str(questions)]
-            except json.JSONDecodeError:
-                # Fallback: split by lines and clean up
-                lines = response.content.split('\n')
-                state.research_questions = [
-                    line.strip(' -"•') for line in lines 
-                    if line.strip() and '?' in line
-                ]
+            # Format sources for citation
+            sources_str = format_sources(similar_chunks)
             
-            state.current_step = "questions_generated"
-            return state
+            return {
+                "sources_gathered": state.sources_gathered + [sources_str],
+                "research_loop_count": state.research_loop_count + 1,
+                "vector_search_results": state.vector_search_results + [search_str],
+                "retrieved_chunks": state.retrieved_chunks + similar_chunks
+            }
             
         except Exception as e:
-            logger.error(f"Error generating research questions: {str(e)}")
-            state.errors.append(f"Question generation error: {str(e)}")
-            return state
+            logger.error(f"Error in vector search: {str(e)}")
+            state.errors.append(f"Vector search error: {str(e)}")
+            return {
+                "research_loop_count": state.research_loop_count + 1,
+                "vector_search_results": state.vector_search_results + ["No results found"]
+            }
     
-    async def _retrieve_information(self, state: ResearchState) -> ResearchState:
-        """Retrieve relevant information from the document using vector search."""
+    async def _summarize_sources(self, state: ResearchState) -> Dict[str, Any]:
+        """Summarize the vector search results."""
         try:
-            logger.info("Retrieving information from document")
+            existing_summary = state.running_summary
+            most_recent_search = state.vector_search_results[-1] if state.vector_search_results else ""
             
-            all_retrieved_info = []
-            sources_used = []
-            
-            # Search for each research question
-            for i, question in enumerate(state.research_questions):
-                try:
-                    # Search for similar chunks
-                    similar_chunks = await embedding_service.search_similar_chunks(
-                        query=question,
-                        document_id=state.document_id,
-                        top_k=5,
-                        similarity_threshold=0.6
-                    )
-                    
-                    for chunk in similar_chunks:
-                        info_entry = {
-                            'question': question,
-                            'question_index': i,
-                            'content': chunk['content'],
-                            'similarity_score': chunk['similarity_score'],
-                            'chunk_id': chunk['chunk_id'],
-                            'page_number': chunk.get('page_number'),
-                            'chunk_index': chunk.get('chunk_index')
-                        }
-                        all_retrieved_info.append(info_entry)
-                        
-                        # Track sources
-                        source_entry = {
-                            'chunk_id': chunk['chunk_id'],
-                            'page_number': chunk.get('page_number'),
-                            'similarity_score': chunk['similarity_score'],
-                            'question': question
-                        }
-                        if source_entry not in sources_used:
-                            sources_used.append(source_entry)
-                
-                except Exception as e:
-                    logger.warning(f"Error retrieving info for question '{question}': {str(e)}")
-                    continue
-            
-            # Also do a general search for the main topic
-            try:
-                topic_chunks = await embedding_service.search_similar_chunks(
-                    query=state.topic,
-                    document_id=state.document_id,
-                    top_k=8,
-                    similarity_threshold=0.5
+            if existing_summary:
+                human_message_content = (
+                    f"<Existing Summary>\n{existing_summary}\n</Existing Summary>\n\n"
+                    f"<New Context>\n{most_recent_search}\n</New Context>\n"
+                    f"Update the Existing Summary with the New Context on this topic:\n"
+                    f"<User Input>\n{state.research_topic}\n</User Input>\n"
                 )
-                
-                for chunk in topic_chunks:
-                    info_entry = {
-                        'question': f"General topic: {state.topic}",
-                        'question_index': -1,
-                        'content': chunk['content'],
-                        'similarity_score': chunk['similarity_score'],
-                        'chunk_id': chunk['chunk_id'],
-                        'page_number': chunk.get('page_number'),
-                        'chunk_index': chunk.get('chunk_index')
-                    }
-                    all_retrieved_info.append(info_entry)
-                    
-            except Exception as e:
-                logger.warning(f"Error in general topic search: {str(e)}")
+            else:
+                human_message_content = (
+                    f"<Context>\n{most_recent_search}\n</Context>\n"
+                    f"Create a Summary using the Context on this topic:\n"
+                    f"<User Input>\n{state.research_topic}\n</User Input>\n"
+                )
             
-            state.retrieved_information = all_retrieved_info
-            state.sources_used = sources_used
-            state.current_step = "information_retrieved"
+            messages = [
+                SystemMessage(content=SUMMARIZER_INSTRUCTIONS),
+                HumanMessage(content=human_message_content)
+            ]
             
-            logger.info(f"Retrieved {len(all_retrieved_info)} information pieces from {len(sources_used)} sources")
-            return state
+            response = await self.llm.ainvoke(messages)
+            running_summary = response.content
+            
+            return {"running_summary": running_summary}
             
         except Exception as e:
-            logger.error(f"Error retrieving information: {str(e)}")
-            state.errors.append(f"Information retrieval error: {str(e)}")
-            return state
+            logger.error(f"Error summarizing sources: {str(e)}")
+            state.errors.append(f"Summarization error: {str(e)}")
+            return {"running_summary": state.running_summary}
     
-    async def _create_content_outline(self, state: ResearchState) -> ResearchState:
-        """Create a structured content outline based on retrieved information."""
+    async def _reflect_on_summary(self, state: ResearchState) -> Dict[str, Any]:
+        """Reflect on the summary to identify knowledge gaps."""
         try:
-            logger.info("Creating content outline")
-            
-            # Prepare context from retrieved information
-            context_chunks = []
-            for info in state.retrieved_information[:20]:  # Limit context size
-                context_chunks.append(f"[Page {info.get('page_number', '?')}] {info['content'][:300]}...")
-            
-            context = "\n\n".join(context_chunks)
-            
-            outline_prompt = ChatPromptTemplate.from_messages([
-                ("system", CONTENT_OUTLINE_SYSTEM_PROMPT),
-                ("human", CONTENT_OUTLINE_HUMAN_TEMPLATE)
-            ])
-            
-            messages = outline_prompt.format_messages(
-                topic=state.topic,
-                questions="\n".join([f"- {q}" for q in state.research_questions]),
-                context=context
+            formatted_prompt = REFLECTION_INSTRUCTIONS.format(
+                research_topic=state.research_topic
             )
+            
+            messages = [
+                SystemMessage(content=formatted_prompt + "\n" + REFLECTION_JSON_INSTRUCTIONS),
+                HumanMessage(
+                    content=f"Reflect on our existing knowledge:\n===\n{state.running_summary}\n===\n"
+                    f"Identify a knowledge gap and generate a follow-up search query:"
+                )
+            ]
             
             response = await self.llm.ainvoke(messages)
             
-            # Parse the outline
             try:
-                outline = json.loads(response.content)
-                state.content_outline.update({
-                    'structured_outline': outline,
-                    'creation_timestamp': datetime.now().isoformat()
-                })
+                parsed_json = json.loads(response.content)
+                search_query = parsed_json.get("follow_up_query", f"More details about {state.research_topic}")
             except json.JSONDecodeError:
-                logger.warning("Failed to parse content outline JSON")
-                state.content_outline.update({
-                    'raw_outline': response.content,
-                    'parsing_error': 'JSON parsing failed'
-                })
+                logger.warning("Failed to parse reflection JSON, using fallback")
+                search_query = f"Additional information about {state.research_topic}"
             
-            state.current_step = "outline_created"
-            return state
+            return {"search_query": search_query}
             
         except Exception as e:
-            logger.error(f"Error creating content outline: {str(e)}")
-            state.errors.append(f"Outline creation error: {str(e)}")
-            return state
+            logger.error(f"Error in reflection: {str(e)}")
+            state.errors.append(f"Reflection error: {str(e)}")
+            return {"search_query": state.research_topic}
     
-    async def _generate_detailed_content(self, state: ResearchState) -> ResearchState:
-        """Generate detailed content for each section of the outline."""
+    async def _finalize_summary(self, state: ResearchState) -> Dict[str, Any]:
+        """Finalize the research summary."""
         try:
-            logger.info("Generating detailed content")
+            # Deduplicate sources
+            seen_sources = set()
+            unique_sources = []
             
-            structured_outline = state.content_outline.get('structured_outline', {})
-            main_sections = structured_outline.get('main_sections', [])
+            for source in state.sources_gathered:
+                for line in source.split("\n"):
+                    if line.strip() and line not in seen_sources:
+                        seen_sources.add(line)
+                        unique_sources.append(line)
             
-            detailed_sections = {}
+            all_sources = "\n".join(unique_sources)
             
-            for i, section in enumerate(main_sections):
-                try:
-                    section_title = section.get('section_title', f'Section {i+1}')
-                    
-                    # Find relevant information for this section
-                    relevant_info = []
-                    for info in state.retrieved_information:
-                        # Simple relevance check based on keywords
-                        section_keywords = section_title.lower().split()
-                        info_text = info['content'].lower()
-                        
-                        if any(keyword in info_text for keyword in section_keywords):
-                            relevant_info.append(info)
-                    
-                    # Limit to top relevant pieces
-                    relevant_info = relevant_info[:5]
-                    
-                    content_prompt = ChatPromptTemplate.from_messages([
-                        ("system", DETAILED_CONTENT_SYSTEM_PROMPT),
-                        ("human", DETAILED_CONTENT_HUMAN_TEMPLATE)
-                    ])
-                    
-                    relevant_context = "\n\n".join([
-                        f"[Page {info.get('page_number', '?')}] {info['content']}"
-                        for info in relevant_info
-                    ])
-                    
-                    messages = content_prompt.format_messages(
-                        section_title=section_title,
-                        key_points=", ".join(section.get('key_points', [])),
-                        supporting_data=", ".join(section.get('supporting_data', [])),
-                        importance=section.get('importance', 'Not specified'),
-                        relevant_context=relevant_context or "No specific information found for this section."
-                    )
-                    
-                    response = await self.llm.ainvoke(messages)
-                    
-                    detailed_sections[section_title] = {
-                        'content': response.content,
-                        'word_count': len(response.content.split()),
-                        'sources_used': len(relevant_info),
-                        'section_metadata': section
-                    }
-                    
-                    # Small delay to avoid rate limits
-                    await asyncio.sleep(0.5)
-                    
-                except Exception as e:
-                    logger.warning(f"Error generating content for section '{section_title}': {str(e)}")
-                    detailed_sections[section_title] = {
-                        'content': f"Error generating content: {str(e)}",
-                        'error': True
-                    }
-            
-            state.detailed_sections = detailed_sections
-            state.current_step = "content_generated"
-            
-            return state
-            
-        except Exception as e:
-            logger.error(f"Error generating detailed content: {str(e)}")
-            state.errors.append(f"Content generation error: {str(e)}")
-            return state
-    
-    async def _finalize_research(self, state: ResearchState) -> ResearchState:
-        """Finalize the research process."""
-        try:
-            logger.info("Finalizing research")
-            
-            # Add final metadata
-            state.content_outline.update({
-                'research_completed_at': datetime.now().isoformat(),
-                'total_sections_generated': len(state.detailed_sections),
-                'total_sources_used': len(state.sources_used),
-                'research_quality_score': self._calculate_quality_score(state)
-            })
-            
-            state.current_step = "completed"
-            return state
-            
-        except Exception as e:
-            logger.error(f"Error finalizing research: {str(e)}")
-            state.errors.append(f"Finalization error: {str(e)}")
-            return state
-    
-    def _calculate_quality_score(self, state: ResearchState) -> float:
-        """Calculate a quality score for the research (0-10)."""
-        try:
-            score = 5.0  # Base score
-            
-            # Points for comprehensive questions
-            if len(state.research_questions) >= 5:
-                score += 1.0
-            
-            # Points for information retrieval
-            if len(state.retrieved_information) >= 10:
-                score += 1.0
-            
-            # Points for high similarity scores
-            high_similarity_count = sum(
-                1 for info in state.retrieved_information 
-                if info.get('similarity_score', 0) > 0.8
+            final_summary = (
+                f"## Research Summary: {state.research_topic}\n\n"
+                f"{state.running_summary}\n\n"
+                f"### Sources Used:\n{all_sources}"
             )
-            if high_similarity_count >= 5:
-                score += 1.0
             
-            # Points for detailed sections
-            if len(state.detailed_sections) >= 3:
-                score += 1.0
+            return {"running_summary": final_summary}
             
-            # Points for no errors
-            if not state.errors:
-                score += 1.0
-            
-            return min(10.0, score)
-            
-        except Exception:
-            return 5.0
+        except Exception as e:
+            logger.error(f"Error finalizing summary: {str(e)}")
+            state.errors.append(f"Finalization error: {str(e)}")
+            return {"running_summary": state.running_summary}
+    
+    def _route_research(self, state: ResearchState) -> Literal["finalize_summary", "vector_search"]:
+        """Route the research flow based on loop count."""
+        if state.research_loop_count < self.config.max_research_loops:
+            return "vector_search"
+        else:
+            return "finalize_summary"
     
     async def _create_research_task(self, document_id: str, topic: str, query: str) -> str:
         """Create a research task in the database."""
@@ -534,9 +445,8 @@ class DeepResearchAgent:
     async def _update_research_task(
             self, 
             task_id: str, 
-            content_outline: Dict[str, Any],
-            research_findings: Dict[str, Any], 
-            sources_used: List[Dict[str, Any]],
+            summary: str,
+            sources: List[str],
             status: str,
             errors: List[str]
         ) -> None:
@@ -544,9 +454,8 @@ class DeepResearchAgent:
         with get_db_session() as db:
             task = db.query(ResearchTask).filter(ResearchTask.id == task_id).first()
             if task:
-                task.content_outline = content_outline
-                task.research_findings = research_findings
-                task.sources_used = sources_used
+                task.research_findings = {"summary": summary}
+                task.sources_used = [{"source": s} for s in sources]
                 task.status = status
                 task.completed_at = datetime.now()
                 
