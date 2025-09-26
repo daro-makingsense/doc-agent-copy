@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
     
+    # Metadata extraction settings
+    USE_VECTOR_REGEX_EXTRACTION: bool = True
+    EXTRACTION_SIMILARITY_THRESHOLD: float = 0.6
+    EXTRACTION_TOP_K_CHUNKS: int = 5
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
