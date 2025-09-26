@@ -84,12 +84,24 @@ export interface ChatMessage {
   content: string;
   created_at: string;
   token_count?: number;
+  sources?: Array<{ 
+    chunk_id?: string;
+    page_number?: number;
+    similarity_score?: number;
+    preview?: string;
+  }>;
 }
 
 export interface ChatResponse {
   message: string;
   session_id: string;
-  sources_used?: Array<{ page: number; content: string; relevance_score: number }>;
+  sources_used?: Array<{ 
+    chunk_id?: string;
+    page_number?: number;
+    similarity_score?: number;
+    preview?: string;
+  }>;
+  tool_calls: string[];
   response_time: number;
   token_count: number;
 }
@@ -246,14 +258,12 @@ export class APIClient {
   async sendMessage(
     message: string,
     documentId?: string,
-    sessionId?: string,
-    useRag: boolean = true
+    sessionId?: string
   ): Promise<ChatResponse> {
     const response = await this.axios.post<ChatResponse>('/conversation', {
       message,
       document_id: documentId,
       session_id: sessionId,
-      use_rag: useRag,
     });
     return response.data;
   }

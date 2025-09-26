@@ -7,6 +7,7 @@ import { apiClient, Document, ChatSession, ChatMessage } from '@/lib/api-client'
 import { formatRelativeTime, formatDate } from '@/lib/utils';
 import { MessageSquare, Send, Loader2, Plus, FileText, Bot, User, Settings } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
+import { MessageSources } from '@/components/MessageSources';
 
 export default function ChatPage() {
   const searchParams = useSearchParams();
@@ -17,7 +18,6 @@ export default function ChatPage() {
   const [selectedDocument, setSelectedDocument] = useState<string>(preselectedDocumentId || '');
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [message, setMessage] = useState('');
-  const [useRag, setUseRag] = useState(true);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [sessionName, setSessionName] = useState('');
 
@@ -31,9 +31,22 @@ export default function ChatPage() {
     queryFn: () => apiClient.listChatSessions(),
   });
 
-  const { data: messages, refetch: refetchMessages } = useQuery({
+  const [messages, setMessages] = useState<Array<{
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    created_at: string;
+    sources?: any[];
+  }>>([]);
+  
+  const { refetch: refetchMessages } = useQuery({
     queryKey: ['chat-messages', selectedSession],
-    queryFn: () => selectedSession ? apiClient.getChatHistory(selectedSession) : null,
+    queryFn: async () => {
+      if (!selectedSession) return null;
+      const history = await apiClient.getChatHistory(selectedSession);
+      setMessages(history);
+      return history;
+    },
     enabled: !!selectedSession,
   });
 
@@ -60,15 +73,28 @@ export default function ChatPage() {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ message, documentId, sessionId, useRag }: { 
+    mutationFn: ({ message, documentId, sessionId }: { 
       message: string; 
       documentId?: string; 
       sessionId?: string;
-      useRag: boolean;
-    }) => apiClient.sendMessage(message, documentId, sessionId, useRag),
-    onSuccess: () => {
+    }) => apiClient.sendMessage(message, documentId, sessionId),
+    onSuccess: (response) => {
       setMessage('');
-      refetchMessages();
+      // Add the new messages to the local state
+      const userMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user' as const,
+        content: sendMessageMutation.variables?.message || '',
+        created_at: new Date().toISOString(),
+      };
+      const assistantMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant' as const,
+        content: response.message,
+        created_at: new Date().toISOString(),
+        sources: response.sources_used,
+      };
+      setMessages(prev => [...prev, userMessage, assistantMessage]);
     },
     onError: (error: any) => {
       toast({
@@ -102,7 +128,6 @@ export default function ChatPage() {
       message: currentMessage,
       documentId: selectedDocument || undefined,
       sessionId: selectedSession || undefined,
-      useRag,
     });
   };
 
@@ -238,15 +263,7 @@ export default function ChatPage() {
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <label className="flex items-center space-x-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={useRag}
-                      onChange={(e) => setUseRag(e.target.checked)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-gray-800">Use RAG</span>
-                  </label>
+                  <Settings className="h-4 w-4 text-gray-500" />
                 </div>
               </div>
             </div>
@@ -283,6 +300,9 @@ export default function ChatPage() {
                           }`}>
                             {formatRelativeTime(msg.created_at)}
                           </p>
+                          {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                            <MessageSources sources={msg.sources} />
+                          )}
                         </div>
                       </div>
                     </div>

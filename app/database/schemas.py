@@ -138,7 +138,6 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[UUID] = None
     document_id: Optional[UUID] = None
-    use_rag: bool = True
 
 
 class ChatResponse(BaseModel):
@@ -146,6 +145,7 @@ class ChatResponse(BaseModel):
     message: str
     session_id: UUID
     sources_used: Optional[List[Dict[str, Any]]] = None
+    tool_calls: List[str] = Field(default_factory=list)
     response_time: float
     token_count: Optional[int] = None
 

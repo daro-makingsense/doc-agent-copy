@@ -19,7 +19,7 @@ from app.services.document_processor import document_processor
 from app.services.embedding_service import embedding_service
 from app.services.metadata_extractor import metadata_extractor
 from app.agents.deep_research_agent import deep_research_agent
-from app.agents.chat_rag_agent import chat_rag_agent
+from app.agents.chat_agent_with_tools import chat_agent_with_tools
 from app.config import get_settings
 
 settings = get_settings()
@@ -366,24 +366,24 @@ async def send_chat_message(
                     detail="Document not found"
                 )
             
-            if not document.is_embedded and request.use_rag:
+            if not document.is_embedded:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Document must be embedded for RAG functionality"
+                    detail="Document must be embedded before using in chat"
                 )
         
         # Process chat message
-        result = await chat_rag_agent.chat(
+        result = await chat_agent_with_tools.chat(
             message=request.message,
             session_id=str(request.session_id) if request.session_id else None,
-            document_id=str(request.document_id) if request.document_id else None,
-            use_rag=request.use_rag
+            document_id=str(request.document_id) if request.document_id else None
         )
         
         return schemas.ChatResponse(
             message=result['message'],
             session_id=result['session_id'],
             sources_used=result.get('sources_used'),
+            tool_calls=result.get('tool_calls', []),
             response_time=result['response_time'],
             token_count=result.get('token_count')
         )
@@ -475,21 +475,22 @@ async def get_chat_history(
 ):
     """Get chat history for a session."""
     try:
-        history = await chat_rag_agent.get_chat_history(session_id, limit)
+        history = await chat_agent_with_tools.get_chat_history(session_id, limit)
         
         # Convert to ChatMessage schema format
         messages = []
         for msg in history:
-            messages.append(schemas.ChatMessage(
+            message_data = schemas.ChatMessage(
                 id=msg['id'],
                 session_id=session_id,
                 role=msg['role'],
                 content=msg['content'],
                 created_at=msg['created_at'],
                 token_count=msg.get('token_count'),
-                retrieved_chunks=None,  # Simplified for API response
+                retrieved_chunks=msg.get('sources'),  # Include sources if available
                 similarity_scores=None
-            ))
+            )
+            messages.append(message_data)
         
         return messages
         
