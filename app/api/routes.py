@@ -18,6 +18,7 @@ from app.api.dependencies import validate_file_upload, ensure_upload_directory, 
 from app.services.document_processor import document_processor
 from app.services.embedding_service import embedding_service
 from app.services.metadata_extractor import metadata_extractor
+from app.services.metadata_extractor_v2 import vector_regex_extractor
 from app.agents.deep_research_agent import deep_research_agent
 from app.agents.chat_agent_with_tools import chat_agent_with_tools
 from app.config import get_settings
@@ -109,8 +110,14 @@ async def process_document_pipeline(document_id: str, file_path: str):
         logger.info(f"Embedding completed for {document_id}")
         
         # Step 3: Extract metadata
-        await metadata_extractor.extract_metadata(document_id)
-        logger.info(f"Metadata extraction completed for {document_id}")
+        if settings.USE_VECTOR_REGEX_EXTRACTION:
+            logger.info(f"Using enhanced vector+regex extraction for {document_id}")
+            await vector_regex_extractor.extract_metadata(document_id)
+            logger.info(f"Enhanced metadata extraction completed for {document_id}")
+        else:
+            logger.info(f"Using legacy LLM-based extraction for {document_id}")
+            await metadata_extractor.extract_metadata(document_id)
+            logger.info(f"Legacy metadata extraction completed for {document_id}")
         
         # Clean up temporary file if needed
         try:
@@ -630,8 +637,13 @@ async def test_metadata_extraction(
                 detail=f"Document {document_id} not found"
             )
         
-        # Run metadata extraction
-        result = await metadata_extractor.extract_metadata(document_id)
+        # Run metadata extraction based on configuration
+        if settings.USE_VECTOR_REGEX_EXTRACTION:
+            logger.info(f"Testing enhanced vector+regex extraction for {document_id}")
+            result = await vector_regex_extractor.extract_metadata(document_id)
+        else:
+            logger.info(f"Testing legacy LLM-based extraction for {document_id}")
+            result = await metadata_extractor.extract_metadata(document_id)
         
         logger.info(f"Test extraction completed for {document_id}")
         return {
